@@ -5,6 +5,7 @@ struct Particle {
     float4 spherePosition;
     float4 scatterPosition;
     float4 colorAndSize;
+    float4 motion;
 };
 
 struct Uniforms {
@@ -34,8 +35,13 @@ vertex VertexOut particleVertex(
         particle.scatterPosition.xyz,
         t
     );
+    float driftPhase = uniforms.time * (0.58 + particle.motion.w * 0.42) + particle.motion.w * 6.283185;
+    float scatterWeight = 0.18 + t * 0.82;
+    float3 drift = particle.motion.xyz * sin(driftPhase) * 0.026 * scatterWeight;
+    localPosition += drift;
+    localPosition *= mix(0.46, 0.62, t);
 
-    float spin = uniforms.time * 0.42;
+    float spin = uniforms.time * mix(0.36, 0.28, t);
     float tilt = -0.18;
     float spinCos = cos(spin);
     float spinSin = sin(spin);
@@ -58,9 +64,9 @@ vertex VertexOut particleVertex(
 
     VertexOut out;
     out.position = viewPosition;
-    out.color = particle.colorAndSize.rgb * mix(0.62, 1.18, depth);
-    out.alpha = mix(0.22, 0.9, depth);
-    out.pointSize = particle.colorAndSize.a * uniforms.pointScale * mix(0.62, 1.22, depth);
+    out.color = particle.colorAndSize.rgb * mix(0.56, 1.2, depth);
+    out.alpha = mix(0.16, 0.88, depth) * mix(0.9, 1.0, 1.0 - t);
+    out.pointSize = particle.colorAndSize.a * uniforms.pointScale * mix(0.82, 1.0, t) * mix(0.56, 1.24, depth);
     return out;
 }
 
@@ -77,7 +83,7 @@ fragment float4 particleFragment(
 
     float glow = smoothstep(1.0, 0.0, distanceSquared);
     float core = smoothstep(0.32, 0.0, distanceSquared);
-    float alpha = in.alpha * mix(glow * 0.72, 1.0, core);
+    float alpha = in.alpha * mix(glow * 0.62, 1.0, core);
 
     return float4(in.color, alpha);
 }

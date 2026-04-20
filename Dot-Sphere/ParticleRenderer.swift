@@ -5,6 +5,7 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
         var spherePosition: SIMD4<Float>
         var scatterPosition: SIMD4<Float>
         var colorAndSize: SIMD4<Float>
+        var motion: SIMD4<Float>
     }
 
     private struct Uniforms {
@@ -15,7 +16,7 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
         var pointScale: Float
     }
 
-    private let particleCount = 1_400
+    private let particleCount = 1_900
 
     private var commandQueue: MTLCommandQueue?
     private var pipelineState: MTLRenderPipelineState?
@@ -92,23 +93,43 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
 
         for index in 0..<particleCount {
             let sphere = fibonacciSpherePoint(index: index, count: particleCount)
-            let radiusJitter = Float.random(in: 0.72...1.02)
+            var random = SeededRandom(seed: UInt32(index) &* 747_796_405 &+ 2_891_336_453)
+            let shellBias = pow(random.nextFloat(), 0.34)
+            let radiusJitter = 0.58 + shellBias * 0.46
             let spherePosition = sphere * radiusJitter
-            let scatterDistance = Float.random(in: 1.2...2.45)
-            let scatterNoise = randomUnitVector() * Float.random(in: 0.0...0.34)
-            let scatterPosition = sphere * scatterDistance + scatterNoise
+            let scatterDistance = 1.18 + pow(random.nextFloat(), 0.72) * 1.55
+            let scatterNoise = randomUnitVector(random: &random) * (0.08 + random.nextFloat() * 0.42)
+            let verticalLift = SIMD3<Float>(
+                random.nextSignedFloat() * 0.1,
+                random.nextSignedFloat() * 0.36,
+                random.nextSignedFloat() * 0.08
+            )
+            let scatterPosition = SIMD3<Float>(
+                sphere.x * scatterDistance * 1.16,
+                sphere.y * scatterDistance * 0.86,
+                sphere.z * scatterDistance * 1.02
+            ) + scatterNoise + verticalLift
 
             let vertical = (sphere.y + 1) * 0.5
-            let purple = SIMD3<Float>(0.48, 0.18, 1.0)
-            let red = SIMD3<Float>(1.0, 0.08, 0.32)
-            let color = purple + (red - purple) * vertical
-            let size = Float.random(in: 3.0...6.4)
+            let purple = SIMD3<Float>(0.46, 0.16, 1.0)
+            let magenta = SIMD3<Float>(0.94, 0.08, 0.62)
+            let red = SIMD3<Float>(1.0, 0.09, 0.27)
+            let upperColor = magenta + (red - magenta) * smoothstep(edge0: 0.45, edge1: 1, x: vertical)
+            let color = purple + (upperColor - purple) * vertical
+            let size = 2.4 + pow(random.nextFloat(), 2.2) * 5.6
+            let motion = SIMD4<Float>(
+                random.nextSignedFloat(),
+                random.nextSignedFloat(),
+                random.nextSignedFloat(),
+                random.nextFloat()
+            )
 
             particles.append(
                 Particle(
                     spherePosition: SIMD4<Float>(spherePosition, 1),
                     scatterPosition: SIMD4<Float>(scatterPosition, 1),
-                    colorAndSize: SIMD4<Float>(color.x, color.y, color.z, size)
+                    colorAndSize: SIMD4<Float>(color.x, color.y, color.z, size),
+                    motion: motion
                 )
             )
         }
@@ -135,7 +156,7 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
             nearZ: 0.1,
             farZ: 100
         )
-        let viewMatrix = makeTranslationMatrix(x: 0, y: 0, z: -4.2)
+        let viewMatrix = makeTranslationMatrix(x: 0, y: 0.34, z: -4.35)
         let uniforms = Uniforms(
             viewProjectionMatrix: projection * viewMatrix,
             time: elapsed,
@@ -162,9 +183,9 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
         )
     }
 
-    private func randomUnitVector() -> SIMD3<Float> {
-        let z = Float.random(in: -1...1)
-        let angle = Float.random(in: 0...(2 * .pi))
+    private func randomUnitVector(random: inout SeededRandom) -> SIMD3<Float> {
+        let z = random.nextSignedFloat()
+        let angle = random.nextFloat() * 2 * .pi
         let radius = sqrt(max(0, 1 - z * z))
 
         return SIMD3<Float>(
@@ -201,5 +222,27 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
             SIMD4<Float>(0, 0, zScale, -1),
             SIMD4<Float>(0, 0, wzScale, 0)
         )
+    }
+
+    private func smoothstep(edge0: Float, edge1: Float, x: Float) -> Float {
+        let t = min(max((x - edge0) / (edge1 - edge0), 0), 1)
+        return t * t * (3 - 2 * t)
+    }
+}
+
+private struct SeededRandom {
+    private var state: UInt32
+
+    init(seed: UInt32) {
+        state = seed == 0 ? 1 : seed
+    }
+
+    mutating func nextFloat() -> Float {
+        state = state &* 1_664_525 &+ 1_013_904_223
+        return Float(state >> 8) / Float(UInt32.max >> 8)
+    }
+
+    mutating func nextSignedFloat() -> Float {
+        nextFloat() * 2 - 1
     }
 }
