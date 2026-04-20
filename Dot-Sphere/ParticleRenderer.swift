@@ -14,6 +14,8 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
         var progress: Float
         var aspectRatio: Float
         var pointScale: Float
+        var rotationSpeed: Float
+        var gradientRandomness: Float
     }
 
     private let particleCount = 1_900
@@ -25,6 +27,8 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
     private var startTime = CACurrentMediaTime()
 
     var progress: Float = 0
+    var rotationSpeed: Float = 1
+    var gradientRandomness: Float = 0
 
     func configure(with view: MTKView) {
         guard let device = view.device else {
@@ -156,13 +160,15 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
             nearZ: 0.1,
             farZ: 100
         )
-        let viewMatrix = makeTranslationMatrix(x: 0, y: 0.34, z: -4.35)
+        let viewMatrix = makeTranslationMatrix(x: 0, y: 0.2, z: -4.35)
         let uniforms = Uniforms(
             viewProjectionMatrix: projection * viewMatrix,
             time: elapsed,
             progress: progress,
             aspectRatio: aspectRatio,
-            pointScale: min(width, height) / 390
+            pointScale: min(width, height) / 390,
+            rotationSpeed: rotationSpeed,
+            gradientRandomness: gradientRandomness
         )
 
         uniformBuffer.contents().copyMemory(from: [uniforms], byteCount: MemoryLayout<Uniforms>.stride)

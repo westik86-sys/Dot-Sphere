@@ -14,6 +14,8 @@ struct Uniforms {
     float progress;
     float aspectRatio;
     float pointScale;
+    float rotationSpeed;
+    float gradientRandomness;
 };
 
 struct VertexOut {
@@ -41,7 +43,7 @@ vertex VertexOut particleVertex(
     localPosition += drift;
     localPosition *= mix(0.46, 0.62, t);
 
-    float spin = uniforms.time * mix(0.36, 0.28, t);
+    float spin = uniforms.time * uniforms.rotationSpeed * mix(0.36, 0.28, t);
     float tilt = -0.18;
     float spinCos = cos(spin);
     float spinSin = sin(spin);
@@ -64,7 +66,13 @@ vertex VertexOut particleVertex(
 
     VertexOut out;
     out.position = viewPosition;
-    out.color = particle.colorAndSize.rgb * mix(0.56, 1.2, depth);
+    float3 randomA = float3(0.42, 0.12, 1.0);
+    float3 randomB = float3(1.0, 0.06, 0.5);
+    float3 randomC = float3(1.0, 0.13, 0.22);
+    float colorSeed = fract(particle.motion.w + particle.motion.x * 0.31 + particle.motion.y * 0.17);
+    float3 randomGradient = mix(randomA, randomB, smoothstep(0.0, 0.72, colorSeed));
+    randomGradient = mix(randomGradient, randomC, smoothstep(0.58, 1.0, colorSeed));
+    out.color = mix(particle.colorAndSize.rgb, randomGradient, uniforms.gradientRandomness) * mix(0.56, 1.2, depth);
     out.alpha = mix(0.16, 0.88, depth) * mix(0.9, 1.0, 1.0 - t);
     out.pointSize = particle.colorAndSize.a * uniforms.pointScale * mix(0.82, 1.0, t) * mix(0.56, 1.24, depth);
     return out;

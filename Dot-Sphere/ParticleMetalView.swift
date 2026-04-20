@@ -3,6 +3,8 @@ import SwiftUI
 
 struct ParticleMetalView: UIViewRepresentable {
     @Binding var progress: Float
+    @Binding var rotationSpeed: Float
+    @Binding var gradientRandomness: Float
 
     func makeCoordinator() -> ParticleRenderer {
         ParticleRenderer()
@@ -26,5 +28,7 @@ struct ParticleMetalView: UIViewRepresentable {
 
     func updateUIView(_ view: MTKView, context: Context) {
         context.coordinator.progress = progress
+        context.coordinator.rotationSpeed = rotationSpeed
+        context.coordinator.gradientRandomness = gradientRandomness
     }
 }
