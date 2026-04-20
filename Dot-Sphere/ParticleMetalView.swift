@@ -5,6 +5,13 @@ struct ParticleMetalView: UIViewRepresentable {
     @Binding var progress: Float
     @Binding var rotationSpeed: Float
     @Binding var gradientRandomness: Float
+    @Binding var breakupForce: Float
+    @Binding var interactionRadius: Float
+    @Binding var returnSpeed: Float
+    @Binding var particleBrightness: Float
+    @Binding var particleGlow: Float
+    @Binding var interactionPoint: SIMD2<Float>
+    @Binding var interactionStrength: Float
 
     func makeCoordinator() -> ParticleRenderer {
         ParticleRenderer()
@@ -30,5 +37,12 @@ struct ParticleMetalView: UIViewRepresentable {
         context.coordinator.progress = progress
         context.coordinator.rotationSpeed = rotationSpeed
         context.coordinator.gradientRandomness = gradientRandomness
+        context.coordinator.breakupForce = breakupForce
+        context.coordinator.interactionRadius = interactionRadius
+        context.coordinator.returnSpeed = returnSpeed
+        context.coordinator.particleBrightness = particleBrightness
+        context.coordinator.particleGlow = particleGlow
+        context.coordinator.interactionPoint = interactionPoint
+        context.coordinator.interactionStrength = interactionStrength
     }
 }
