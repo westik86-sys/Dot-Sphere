@@ -160,7 +160,7 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
             nearZ: 0.1,
             farZ: 100
         )
-        let viewMatrix = makeTranslationMatrix(x: 0, y: 0.2, z: -4.35)
+        let viewMatrix = makeTranslationMatrix(x: 0, y: 0.4, z: -4.35)
         let uniforms = Uniforms(
             viewProjectionMatrix: projection * viewMatrix,
             time: elapsed,

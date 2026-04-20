@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var progress: Float = 0
     @State private var rotationSpeed: Float = 1
     @State private var gradientRandomness: Float = 0
+    @State private var isSettingsPresented = false
 
     var body: some View {
         ZStack {
@@ -24,72 +25,110 @@ struct ContentView: View {
             VStack {
                 Spacer()
 
-                VStack(spacing: 18) {
-                    VStack(spacing: 12) {
-                        Slider(
-                            value: Binding(
-                                get: { Double(progress) },
-                                set: { progress = Float($0) }
-                            ),
-                            in: 0...1
-                        )
-                        .tint(.white)
-
-                        HStack {
-                            Text("Sphere")
-                            Spacer()
-                            Text("Cloud")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.72))
-                    }
-
-                    VStack(spacing: 12) {
-                        Slider(
-                            value: Binding(
-                                get: { Double(rotationSpeed) },
-                                set: { rotationSpeed = Float($0) }
-                            ),
-                            in: 0...2
-                        )
-                        .tint(.white)
-
-                        HStack {
-                            Text("Still")
-                            Spacer()
-                            Text("Rotation")
-                            Spacer()
-                            Text("Fast")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.72))
-                    }
-
-                    VStack(spacing: 12) {
-                        Slider(
-                            value: Binding(
-                                get: { Double(gradientRandomness) },
-                                set: { gradientRandomness = Float($0) }
-                            ),
-                            in: 0...1
-                        )
-                        .tint(.white)
-
-                        HStack {
-                            Text("Gradient")
-                            Spacer()
-                            Text("Random color")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.72))
-                    }
-                }
-                .padding(.horizontal, 28)
-                .padding(.bottom, 42)
-                .opacity(0.86)
+                settingsControls
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 34)
             }
         }
         .background(.black)
+        .preferredColorScheme(.dark)
+        .sheet(isPresented: $isSettingsPresented) {
+            settingsSheet
+                .preferredColorScheme(.dark)
+                .presentationDetents([.height(300)])
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(28)
+        }
+    }
+
+    private var settingsControls: some View {
+        Button {
+            isSettingsPresented = true
+        } label: {
+            Text("Settings")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(height: 44)
+                .padding(.horizontal, 18)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .glassEffect(
+            .regular.tint(.white.opacity(0.08)).interactive(),
+            in: Capsule()
+        )
+    }
+
+    private var settingsSheet: some View {
+        NavigationStack {
+            VStack(spacing: 22) {
+                controlSlider(
+                    value: $progress,
+                    range: 0...1,
+                    leading: "Sphere",
+                    trailing: "Cloud"
+                )
+
+                controlSlider(
+                    value: $rotationSpeed,
+                    range: 0...2,
+                    leading: "Still",
+                    center: "Rotation",
+                    trailing: "Fast"
+                )
+
+                controlSlider(
+                    value: $gradientRandomness,
+                    range: 0...1,
+                    leading: "Gradient",
+                    trailing: "Random color"
+                )
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 12)
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        isSettingsPresented = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func controlSlider(
+        value: Binding<Float>,
+        range: ClosedRange<Double>,
+        leading: String,
+        center: String? = nil,
+        trailing: String
+    ) -> some View {
+        VStack(spacing: 10) {
+            Slider(
+                value: Binding(
+                    get: { Double(value.wrappedValue) },
+                    set: { value.wrappedValue = Float($0) }
+                ),
+                in: range
+            )
+            .tint(.white)
+
+            HStack {
+                Text(leading)
+                Spacer()
+
+                if let center {
+                    Text(center)
+                    Spacer()
+                }
+
+                Text(trailing)
+            }
+            .font(.caption)
+            .foregroundStyle(.white.opacity(0.72))
+        }
     }
 }
 
