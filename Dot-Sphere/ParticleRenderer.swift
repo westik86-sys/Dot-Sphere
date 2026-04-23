@@ -3,6 +3,7 @@ import MetalKit
 final class ParticleRenderer: NSObject, MTKViewDelegate {
     private struct Particle {
         var spherePosition: SIMD4<Float>
+        var cubePosition: SIMD4<Float>
         var scatterPosition: SIMD4<Float>
         var colorAndSize: SIMD4<Float>
         var motion: SIMD4<Float>
@@ -25,6 +26,7 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
         var pointScale: Float
         var rotationSpeed: Float
         var gradientRandomness: Float
+        var particleCount: UInt32
     }
 
     private let particleCount = 3_000
@@ -39,6 +41,7 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
     private var lastFrameTime = CACurrentMediaTime()
 
     var progress: Float = 0
+    var shapeBlend: Float = 0
     var rotationSpeed: Float = 1
     var gradientRandomness: Float = 0
     var breakupForce: Float = 1
@@ -48,6 +51,7 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
     var particleGlow: Float = 1
     var interactionPoint = SIMD2<Float>(0, 0)
     var interactionStrength: Float = 0
+    private var displayedShapeBlend: Float = 0
 
     func configure(with view: MTKView) {
         guard let device = view.device else {
@@ -92,13 +96,17 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
             computeEncoder.setBuffer(particleStateBuffer, offset: 0, index: 1)
             computeEncoder.setBuffer(uniformBuffer, offset: 0, index: 2)
 
-            let threadCount = MTLSize(width: particleCount, height: 1, depth: 1)
             let threadsPerGroup = MTLSize(
                 width: min(computePipelineState.maxTotalThreadsPerThreadgroup, 256),
                 height: 1,
                 depth: 1
             )
-            computeEncoder.dispatchThreads(threadCount, threadsPerThreadgroup: threadsPerGroup)
+            let threadgroupCount = MTLSize(
+                width: (particleCount + threadsPerGroup.width - 1) / threadsPerGroup.width,
+                height: 1,
+                depth: 1
+            )
+            computeEncoder.dispatchThreadgroups(threadgroupCount, threadsPerThreadgroup: threadsPerGroup)
             computeEncoder.endEncoding()
         }
 
@@ -161,6 +169,7 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
 
         for index in 0..<particleCount {
             let sphere = fibonacciSpherePoint(index: index, count: particleCount)
+            let cubePosition = cubeSurfacePoint(direction: sphere) * 0.96
             var random = SeededRandom(seed: UInt32(index) &* 747_796_405 &+ 2_891_336_453)
             let shellBias = pow(random.nextFloat(), 0.34)
             let radiusJitter = 0.58 + shellBias * 0.46
@@ -195,6 +204,7 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
             particles.append(
                 Particle(
                     spherePosition: SIMD4<Float>(spherePosition, 1),
+                    cubePosition: SIMD4<Float>(cubePosition, 1),
                     scatterPosition: SIMD4<Float>(scatterPosition, 1),
                     colorAndSize: SIMD4<Float>(color.x, color.y, color.z, size),
                     motion: motion
@@ -235,6 +245,8 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
         let elapsed = Float(now - startTime)
         let deltaTime = min(Float(now - lastFrameTime), 1 / 30)
         lastFrameTime = now
+        let shapeStep = min(deltaTime * 3.8, 1)
+        displayedShapeBlend += (shapeBlend - displayedShapeBlend) * shapeStep
         let width = max(Float(view.drawableSize.width), 1)
         let height = max(Float(view.drawableSize.height), 1)
         let aspectRatio = width / height
@@ -262,7 +274,7 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
             appearance: SIMD4<Float>(
                 particleBrightness,
                 particleGlow,
-                0,
+                displayedShapeBlend,
                 0
             ),
             time: elapsed,
@@ -271,7 +283,8 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
             aspectRatio: aspectRatio,
             pointScale: min(width, height) / 390,
             rotationSpeed: rotationSpeed,
-            gradientRandomness: gradientRandomness
+            gradientRandomness: gradientRandomness,
+            particleCount: UInt32(particleCount)
         )
 
         uniformBuffer.contents().copyMemory(from: [uniforms], byteCount: MemoryLayout<Uniforms>.stride)
@@ -290,6 +303,16 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
             y,
             sin(theta) * radius
         )
+    }
+
+    private func cubeSurfacePoint(direction: SIMD3<Float>) -> SIMD3<Float> {
+        let maxAxis = max(max(abs(direction.x), abs(direction.y)), abs(direction.z))
+
+        guard maxAxis > 0 else {
+            return SIMD3<Float>(0, 0, 0)
+        }
+
+        return direction / maxAxis
     }
 
     private func randomUnitVector(random: inout SeededRandom) -> SIMD3<Float> {

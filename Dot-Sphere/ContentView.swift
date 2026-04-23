@@ -7,8 +7,35 @@
 
 import SwiftUI
 
+private enum ParticleShapePreset: String, CaseIterable, Identifiable {
+    case sphere
+    case cube
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .sphere:
+            return "Sphere"
+        case .cube:
+            return "Cube"
+        }
+    }
+
+    var shapeBlend: Float {
+        switch self {
+        case .sphere:
+            return 0
+        case .cube:
+            return 1
+        }
+    }
+}
+
 struct ContentView: View {
     @State private var progress: Float = 0
+    @State private var selectedShape: ParticleShapePreset = .sphere
+    @State private var shapeBlend: Float = 0
     @State private var rotationSpeed: Float = 1
     @State private var gradientRandomness: Float = 0
     @State private var breakupForce: Float = 1
@@ -24,6 +51,7 @@ struct ContentView: View {
         ZStack {
             ParticleMetalView(
                 progress: $progress,
+                shapeBlend: $shapeBlend,
                 rotationSpeed: $rotationSpeed,
                 gradientRandomness: $gradientRandomness,
                 breakupForce: $breakupForce,
@@ -92,6 +120,8 @@ struct ContentView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 22) {
+                    shapePresetPicker
+
                     controlSlider(
                         value: $progress,
                         range: 0...1,
@@ -167,6 +197,19 @@ struct ContentView: View {
                     }
                 }
             }
+        }
+    }
+
+    private var shapePresetPicker: some View {
+        Picker("Shape", selection: $selectedShape) {
+            ForEach(ParticleShapePreset.allCases) { preset in
+                Text(preset.title)
+                    .tag(preset)
+            }
+        }
+        .pickerStyle(.segmented)
+        .onChange(of: selectedShape) { _, newValue in
+            shapeBlend = newValue.shapeBlend
         }
     }
 

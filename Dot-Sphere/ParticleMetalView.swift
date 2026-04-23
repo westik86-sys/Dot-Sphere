@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ParticleMetalView: UIViewRepresentable {
     @Binding var progress: Float
+    @Binding var shapeBlend: Float
     @Binding var rotationSpeed: Float
     @Binding var gradientRandomness: Float
     @Binding var breakupForce: Float
@@ -35,6 +36,7 @@ struct ParticleMetalView: UIViewRepresentable {
 
     func updateUIView(_ view: MTKView, context: Context) {
         context.coordinator.progress = progress
+        context.coordinator.shapeBlend = shapeBlend
         context.coordinator.rotationSpeed = rotationSpeed
         context.coordinator.gradientRandomness = gradientRandomness
         context.coordinator.breakupForce = breakupForce

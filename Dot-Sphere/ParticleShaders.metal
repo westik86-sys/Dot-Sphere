@@ -3,6 +3,7 @@ using namespace metal;
 
 struct Particle {
     float4 spherePosition;
+    float4 cubePosition;
     float4 scatterPosition;
     float4 colorAndSize;
     float4 motion;
@@ -25,6 +26,7 @@ struct Uniforms {
     float pointScale;
     float rotationSpeed;
     float gradientRandomness;
+    uint particleCount;
 };
 
 struct VertexOut {
@@ -37,8 +39,14 @@ struct VertexOut {
 
 static float3 targetPosition(Particle particle, constant Uniforms &uniforms) {
     float t = smoothstep(0.0, 1.0, uniforms.progress);
-    float3 localPosition = mix(
+    float shapeT = smoothstep(0.0, 1.0, uniforms.appearance.z);
+    float3 formPosition = mix(
         particle.spherePosition.xyz,
+        particle.cubePosition.xyz,
+        shapeT
+    );
+    float3 localPosition = mix(
+        formPosition,
         particle.scatterPosition.xyz,
         t
     );
@@ -52,8 +60,8 @@ static float3 targetPosition(Particle particle, constant Uniforms &uniforms) {
 
 static float3 displayPosition(float3 localPosition, constant Uniforms &uniforms) {
     float t = smoothstep(0.0, 1.0, uniforms.progress);
-    float spin = uniforms.time * uniforms.rotationSpeed * mix(0.36, 0.28, t);
-    float tilt = -0.18;
+    float spin = 0.7853982 + uniforms.time * uniforms.rotationSpeed * mix(0.36, 0.28, t);
+    float tilt = 0.6154797;
     float spinCos = cos(spin);
     float spinSin = sin(spin);
     float tiltCos = cos(tilt);
@@ -78,6 +86,10 @@ kernel void particlePhysics(
     device ParticleState *states [[buffer(1)]],
     constant Uniforms &uniforms [[buffer(2)]]
 ) {
+    if (particleID >= uniforms.particleCount) {
+        return;
+    }
+
     Particle particle = particles[particleID];
     ParticleState state = states[particleID];
     float3 currentPosition = state.position.xyz;
