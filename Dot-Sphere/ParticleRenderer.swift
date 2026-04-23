@@ -4,8 +4,10 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
     private struct Particle {
         var spherePosition: SIMD4<Float>
         var cubePosition: SIMD4<Float>
+        var logoPosition: SIMD4<Float>
         var scatterPosition: SIMD4<Float>
         var colorAndSize: SIMD4<Float>
+        var logoColor: SIMD4<Float>
         var motion: SIMD4<Float>
     }
 
@@ -19,6 +21,7 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
         var interaction: SIMD4<Float>
         var physics: SIMD4<Float>
         var appearance: SIMD4<Float>
+        var orientation: SIMD4<Float>
         var time: Float
         var deltaTime: Float
         var progress: Float
@@ -29,7 +32,7 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
         var particleCount: UInt32
     }
 
-    private let particleCount = 3_000
+    private let particleCount = 6_000
 
     private var commandQueue: MTLCommandQueue?
     private var pipelineState: MTLRenderPipelineState?
@@ -51,6 +54,9 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
     var particleGlow: Float = 1
     var interactionPoint = SIMD2<Float>(0, 0)
     var interactionStrength: Float = 0
+    var objectRotation = SIMD2<Float>(0, 0)
+    var isObjectRotationHeld = false
+    private var autoRotation: Float = 0
     private var displayedShapeBlend: Float = 0
 
     func configure(with view: MTKView) {
@@ -200,13 +206,16 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
                 random.nextSignedFloat(),
                 random.nextFloat()
             )
+            let logoParticle = makeLogoParticle(index: index, random: &random)
 
             particles.append(
                 Particle(
                     spherePosition: SIMD4<Float>(spherePosition, 1),
                     cubePosition: SIMD4<Float>(cubePosition, 1),
+                    logoPosition: SIMD4<Float>(logoParticle.position, 1),
                     scatterPosition: SIMD4<Float>(scatterPosition, 1),
                     colorAndSize: SIMD4<Float>(color.x, color.y, color.z, size),
+                    logoColor: logoParticle.color,
                     motion: motion
                 )
             )
@@ -247,6 +256,12 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
         lastFrameTime = now
         let shapeStep = min(deltaTime * 3.8, 1)
         displayedShapeBlend += (shapeBlend - displayedShapeBlend) * shapeStep
+        let progressT = smoothstep(edge0: 0, edge1: 1, x: progress)
+
+        if !isObjectRotationHeld {
+            autoRotation += deltaTime * rotationSpeed * (0.36 + (0.28 - 0.36) * progressT)
+        }
+
         let width = max(Float(view.drawableSize.width), 1)
         let height = max(Float(view.drawableSize.height), 1)
         let aspectRatio = width / height
@@ -275,6 +290,12 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
                 particleBrightness,
                 particleGlow,
                 displayedShapeBlend,
+                0
+            ),
+            orientation: SIMD4<Float>(
+                0.7853982 + autoRotation + objectRotation.x,
+                0.6154797 + objectRotation.y,
+                0,
                 0
             ),
             time: elapsed,
@@ -313,6 +334,130 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
         }
 
         return direction / maxAxis
+    }
+
+    private func makeLogoParticle(
+        index: Int,
+        random: inout SeededRandom
+    ) -> (position: SIMD3<Float>, color: SIMD4<Float>) {
+        let section = Float(index) / Float(particleCount)
+
+        if section < 0.82 {
+            let point = randomLogoBodyPoint(random: &random)
+            let depth = random.nextSignedFloat() * 0.1
+            let position = SIMD3<Float>(point.x, point.y, depth)
+
+            return (position, SIMD4<Float>(1, 0.82, 0.08, 0.84))
+        }
+
+        if section < 0.92 {
+            let point = randomLogoCutoutEdgePoint(random: &random)
+            let position = SIMD3<Float>(point.x, point.y, 0.12 + random.nextSignedFloat() * 0.02)
+
+            return (position, SIMD4<Float>(1, 0.88, 0.12, 0.72))
+        }
+
+        let y = -0.8 + random.nextFloat() * 1.6
+        let halfWidth = logoHalfWidth(at: y)
+        let side: Float = random.nextFloat() < 0.5 ? -1 : 1
+        let x = side * halfWidth + random.nextSignedFloat() * 0.018
+        let z = random.nextSignedFloat() * 0.11
+
+        return (SIMD3<Float>(x, y, z), SIMD4<Float>(0.86, 0.62, 0.02, 0.72))
+    }
+
+    private func randomLogoBodyPoint(random: inout SeededRandom) -> SIMD2<Float> {
+        for _ in 0..<32 {
+            let y = -0.82 + random.nextFloat() * 1.6
+            let halfWidth = logoHalfWidth(at: y)
+            let x = random.nextSignedFloat() * halfWidth
+
+            if !isLogoCutoutPoint(x: x, y: y) {
+                return SIMD2<Float>(x, y)
+            }
+        }
+
+        return SIMD2<Float>(random.nextSignedFloat() * 0.72, -0.72 + random.nextFloat() * 0.28)
+    }
+
+    private func randomLogoCutoutEdgePoint(random: inout SeededRandom) -> SIMD2<Float> {
+        let edgeFamily = random.nextFloat()
+        let jitter = random.nextSignedFloat() * 0.02
+
+        if edgeFamily < 0.28 {
+            let x = random.nextSignedFloat() * 0.62
+
+            return SIMD2<Float>(x, 0.64 + jitter)
+        }
+
+        if edgeFamily < 0.48 {
+            let side: Float = random.nextFloat() < 0.5 ? -1 : 1
+            let u = random.nextFloat()
+            let x = side * (0.22 + u * 0.4)
+            let curve = topSerifCurveY(x: x)
+
+            return SIMD2<Float>(x, curve + jitter)
+        }
+
+        if edgeFamily < 0.72 {
+            let side: Float = random.nextFloat() < 0.5 ? -1 : 1
+            let y = -0.46 + random.nextFloat() * 0.8
+            let halfWidth = stemHalfWidth(at: y)
+
+            return SIMD2<Float>(side * halfWidth + jitter, y)
+        }
+
+        let y = -0.54 + random.nextFloat() * 0.12
+        let halfWidth = stemHalfWidth(at: y)
+
+        return SIMD2<Float>(random.nextSignedFloat() * halfWidth, y + jitter)
+    }
+
+    private func stemHalfWidth(at y: Float) -> Float {
+        if y > -0.32 {
+            return 0.18
+        }
+
+        let flare = smoothstep(edge0: -0.32, edge1: -0.54, x: y)
+        return 0.18 + (0.34 - 0.18) * flare
+    }
+
+    private func topSerifCurveY(x: Float) -> Float {
+        let distanceFromStem = min(max((abs(x) - 0.18) / 0.44, 0), 1)
+        let curve = 1 - pow(distanceFromStem, 2.6)
+
+        return 0.22 + curve * 0.12
+    }
+
+    private func isTLogoCutoutPoint(x: Float, y: Float) -> Bool {
+        let isTopBlock = abs(x) < 0.62 && y > 0.34 && y < 0.64
+        let isTopSerif = abs(x) < 0.62 && abs(x) > 0.18 && y > topSerifCurveY(x: x) && y < 0.34
+        let isStem = abs(x) < stemHalfWidth(at: y) && y > -0.54 && y < 0.34
+
+        return isTopBlock || isTopSerif || isStem
+    }
+
+    private func isLogoCutoutPoint(x: Float, y: Float) -> Bool {
+        if !isTLogoCutoutPoint(x: x, y: y) {
+            return false
+        }
+
+        let edgePadding: Float = 0.018
+        let left = isTLogoCutoutPoint(x: x - edgePadding, y: y)
+        let right = isTLogoCutoutPoint(x: x + edgePadding, y: y)
+        let top = isTLogoCutoutPoint(x: x, y: y + edgePadding)
+        let bottom = isTLogoCutoutPoint(x: x, y: y - edgePadding)
+
+        return left && right && top && bottom
+    }
+
+    private func logoHalfWidth(at y: Float) -> Float {
+        if y > -0.34 {
+            return 0.74
+        }
+
+        let taper = smoothstep(edge0: -0.34, edge1: -0.82, x: y)
+        return 0.74 + (0.12 - 0.74) * taper
     }
 
     private func randomUnitVector(random: inout SeededRandom) -> SIMD3<Float> {

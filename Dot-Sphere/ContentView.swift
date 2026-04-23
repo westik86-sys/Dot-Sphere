@@ -10,6 +10,7 @@ import SwiftUI
 private enum ParticleShapePreset: String, CaseIterable, Identifiable {
     case sphere
     case cube
+    case logo
 
     var id: Self { self }
 
@@ -19,6 +20,8 @@ private enum ParticleShapePreset: String, CaseIterable, Identifiable {
             return "Sphere"
         case .cube:
             return "Cube"
+        case .logo:
+            return "Logo"
         }
     }
 
@@ -28,6 +31,8 @@ private enum ParticleShapePreset: String, CaseIterable, Identifiable {
             return 0
         case .cube:
             return 1
+        case .logo:
+            return 2
         }
     }
 }
@@ -46,6 +51,9 @@ struct ContentView: View {
     @State private var isSettingsPresented = false
     @State private var interactionPoint = SIMD2<Float>(0, 0)
     @State private var interactionStrength: Float = 0
+    @State private var objectRotation = SIMD2<Float>(0, 0)
+    @State private var isObjectRotationHeld = false
+    @State private var previousDragLocation: CGPoint?
 
     var body: some View {
         ZStack {
@@ -60,7 +68,9 @@ struct ContentView: View {
                 particleBrightness: $particleBrightness,
                 particleGlow: $particleGlow,
                 interactionPoint: $interactionPoint,
-                interactionStrength: $interactionStrength
+                interactionStrength: $interactionStrength,
+                objectRotation: $objectRotation,
+                isObjectRotationHeld: $isObjectRotationHeld
             )
                 .ignoresSafeArea()
 
@@ -71,9 +81,12 @@ struct ContentView: View {
                         DragGesture(minimumDistance: 0, coordinateSpace: .local)
                             .onChanged { value in
                                 updateInteraction(at: value.location, in: proxy.size)
+                                updateObjectRotation(with: value, in: proxy.size)
                             }
                             .onEnded { _ in
                                 interactionStrength = 0
+                                isObjectRotationHeld = false
+                                previousDragLocation = nil
                             }
                     )
             }
@@ -125,7 +138,7 @@ struct ContentView: View {
                     controlSlider(
                         value: $progress,
                         range: 0...1,
-                        leading: "Sphere",
+                        leading: "Shape",
                         trailing: "Cloud"
                     )
 
@@ -256,6 +269,28 @@ struct ContentView: View {
 
         interactionPoint = SIMD2<Float>(normalizedX, normalizedY)
         interactionStrength = 1
+    }
+
+    private func updateObjectRotation(with value: DragGesture.Value, in size: CGSize) {
+        isObjectRotationHeld = true
+
+        guard size.width > 0, size.height > 0 else {
+            previousDragLocation = value.location
+            return
+        }
+
+        guard let previousDragLocation else {
+            self.previousDragLocation = value.location
+            return
+        }
+
+        let dragScale = max(Float(min(size.width, size.height)), 1)
+        let deltaX = Float(value.location.x - previousDragLocation.x) / dragScale
+        let deltaY = Float(value.location.y - previousDragLocation.y) / dragScale
+
+        objectRotation.x += deltaX * 4.2
+        objectRotation.y = min(max(objectRotation.y + deltaY * 3.2, -1.15), 1.15)
+        self.previousDragLocation = value.location
     }
 }
 

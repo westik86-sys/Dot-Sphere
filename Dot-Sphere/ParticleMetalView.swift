@@ -13,6 +13,8 @@ struct ParticleMetalView: UIViewRepresentable {
     @Binding var particleGlow: Float
     @Binding var interactionPoint: SIMD2<Float>
     @Binding var interactionStrength: Float
+    @Binding var objectRotation: SIMD2<Float>
+    @Binding var isObjectRotationHeld: Bool
 
     func makeCoordinator() -> ParticleRenderer {
         ParticleRenderer()
@@ -46,5 +48,7 @@ struct ParticleMetalView: UIViewRepresentable {
         context.coordinator.particleGlow = particleGlow
         context.coordinator.interactionPoint = interactionPoint
         context.coordinator.interactionStrength = interactionStrength
+        context.coordinator.objectRotation = objectRotation
+        context.coordinator.isObjectRotationHeld = isObjectRotationHeld
     }
 }

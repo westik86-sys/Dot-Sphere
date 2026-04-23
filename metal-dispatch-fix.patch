@@ -1,0 +1,63 @@
+diff --git a/Dot-Sphere/ParticleRenderer.swift b/Dot-Sphere/ParticleRenderer.swift
+--- a/Dot-Sphere/ParticleRenderer.swift
++++ b/Dot-Sphere/ParticleRenderer.swift
+@@ -24,6 +24,7 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
+         var pointScale: Float
+         var rotationSpeed: Float
+         var gradientRandomness: Float
++        var particleCount: UInt32
+     }
+ 
+     private let particleCount = 3_000
+@@ -92,13 +93,17 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
+             computeEncoder.setBuffer(particleStateBuffer, offset: 0, index: 1)
+             computeEncoder.setBuffer(uniformBuffer, offset: 0, index: 2)
+ 
+-            let threadCount = MTLSize(width: particleCount, height: 1, depth: 1)
+             let threadsPerGroup = MTLSize(
+                 width: min(computePipelineState.maxTotalThreadsPerThreadgroup, 256),
+                 height: 1,
+                 depth: 1
+             )
+-            computeEncoder.dispatchThreads(threadCount, threadsPerThreadgroup: threadsPerGroup)
++            let threadgroupCount = MTLSize(
++                width: (particleCount + threadsPerGroup.width - 1) / threadsPerGroup.width,
++                height: 1,
++                depth: 1
++            )
++            computeEncoder.dispatchThreadgroups(threadgroupCount, threadsPerThreadgroup: threadsPerGroup)
+             computeEncoder.endEncoding()
+         }
+ 
+@@ -271,7 +276,8 @@ final class ParticleRenderer: NSObject, MTKViewDelegate {
+             aspectRatio: aspectRatio,
+             pointScale: min(width, height) / 390,
+             rotationSpeed: rotationSpeed,
+-            gradientRandomness: gradientRandomness
++            gradientRandomness: gradientRandomness,
++            particleCount: UInt32(particleCount)
+         )
+ 
+         uniformBuffer.contents().copyMemory(from: [uniforms], byteCount: MemoryLayout<Uniforms>.stride)
+diff --git a/Dot-Sphere/ParticleShaders.metal b/Dot-Sphere/ParticleShaders.metal
+--- a/Dot-Sphere/ParticleShaders.metal
++++ b/Dot-Sphere/ParticleShaders.metal
+@@ -24,6 +24,7 @@ struct Uniforms {
+     float pointScale;
+     float rotationSpeed;
+     float gradientRandomness;
++    uint particleCount;
+ };
+ 
+ struct VertexOut {
+@@ -78,6 +79,10 @@ kernel void particlePhysics(
+     device ParticleState *states [[buffer(1)]],
+     constant Uniforms &uniforms [[buffer(2)]]
+ ) {
++    if (particleID >= uniforms.particleCount) {
++        return;
++    }
++
+     Particle particle = particles[particleID];
+     ParticleState state = states[particleID];
+     float3 currentPosition = state.position.xyz;

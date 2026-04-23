@@ -4,8 +4,10 @@ using namespace metal;
 struct Particle {
     float4 spherePosition;
     float4 cubePosition;
+    float4 logoPosition;
     float4 scatterPosition;
     float4 colorAndSize;
+    float4 logoColor;
     float4 motion;
 };
 
@@ -19,6 +21,7 @@ struct Uniforms {
     float4 interaction;
     float4 physics;
     float4 appearance;
+    float4 orientation;
     float time;
     float deltaTime;
     float progress;
@@ -39,11 +42,18 @@ struct VertexOut {
 
 static float3 targetPosition(Particle particle, constant Uniforms &uniforms) {
     float t = smoothstep(0.0, 1.0, uniforms.progress);
-    float shapeT = smoothstep(0.0, 1.0, uniforms.appearance.z);
-    float3 formPosition = mix(
+    float shape = uniforms.appearance.z;
+    float cubeT = smoothstep(0.0, 1.0, shape);
+    float logoT = smoothstep(1.0, 2.0, shape);
+    float3 sphereCubePosition = mix(
         particle.spherePosition.xyz,
         particle.cubePosition.xyz,
-        shapeT
+        cubeT
+    );
+    float3 formPosition = mix(
+        sphereCubePosition,
+        particle.logoPosition.xyz,
+        logoT
     );
     float3 localPosition = mix(
         formPosition,
@@ -59,9 +69,8 @@ static float3 targetPosition(Particle particle, constant Uniforms &uniforms) {
 }
 
 static float3 displayPosition(float3 localPosition, constant Uniforms &uniforms) {
-    float t = smoothstep(0.0, 1.0, uniforms.progress);
-    float spin = 0.7853982 + uniforms.time * uniforms.rotationSpeed * mix(0.36, 0.28, t);
-    float tilt = 0.6154797;
+    float spin = uniforms.orientation.x;
+    float tilt = uniforms.orientation.y;
     float spinCos = cos(spin);
     float spinSin = sin(spin);
     float tiltCos = cos(tilt);
@@ -157,10 +166,16 @@ vertex VertexOut particleVertex(
     randomGradient = mix(randomGradient, randomC, smoothstep(0.58, 1.0, colorSeed));
     float brightness = uniforms.appearance.x;
     float glowAmount = uniforms.appearance.y;
-    out.color = mix(particle.colorAndSize.rgb, randomGradient, uniforms.gradientRandomness) * mix(0.56, 1.2, depth) * mix(1.0, 1.16, velocityGlow) * brightness;
+    float logoT = smoothstep(1.0, 2.0, uniforms.appearance.z);
+    float3 shapeColor = mix(
+        mix(particle.colorAndSize.rgb, randomGradient, uniforms.gradientRandomness),
+        particle.logoColor.rgb,
+        logoT
+    );
+    out.color = shapeColor * mix(0.56, 1.2, depth) * mix(1.0, 1.16, velocityGlow) * brightness;
     out.alpha = mix(0.16, 0.88, depth) * mix(0.9, 1.0, 1.0 - t) * mix(0.72, 1.16, brightness);
     out.glow = glowAmount;
-    out.pointSize = particle.colorAndSize.a * uniforms.pointScale * mix(0.82, 1.0, t) * mix(0.56, 1.24, depth) * mix(1.0, 1.12, velocityGlow) * mix(0.82, 1.22, glowAmount);
+    out.pointSize = particle.colorAndSize.a * mix(1.0, particle.logoColor.a, logoT) * uniforms.pointScale * mix(0.82, 1.0, t) * mix(0.56, 1.24, depth) * mix(1.0, 1.12, velocityGlow) * mix(0.82, 1.22, glowAmount);
     return out;
 }
 
