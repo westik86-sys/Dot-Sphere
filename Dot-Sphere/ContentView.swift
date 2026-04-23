@@ -37,6 +37,11 @@ private enum ParticleShapePreset: String, CaseIterable, Identifiable {
     }
 }
 
+private enum ParticleGestureMode {
+    case interaction
+    case rotation
+}
+
 struct ContentView: View {
     @State private var progress: Float = 0
     @State private var selectedShape: ParticleShapePreset = .sphere
@@ -53,7 +58,8 @@ struct ContentView: View {
     @State private var interactionStrength: Float = 0
     @State private var objectRotation = SIMD2<Float>(0, 0)
     @State private var isObjectRotationHeld = false
-    @State private var previousDragLocation: CGPoint?
+    @State private var activeGestureMode: ParticleGestureMode?
+    @State private var rotationAtGestureStart = SIMD2<Float>(0, 0)
 
     var body: some View {
         ZStack {
@@ -77,16 +83,15 @@ struct ContentView: View {
             GeometryReader { proxy in
                 Color.clear
                     .contentShape(Rectangle())
-                    .gesture(
+                    .highPriorityGesture(
                         DragGesture(minimumDistance: 0, coordinateSpace: .local)
                             .onChanged { value in
-                                updateInteraction(at: value.location, in: proxy.size)
-                                updateObjectRotation(with: value, in: proxy.size)
+                                updateGesture(with: value, in: proxy.size)
                             }
                             .onEnded { _ in
                                 interactionStrength = 0
                                 isObjectRotationHeld = false
-                                previousDragLocation = nil
+                                activeGestureMode = nil
                             }
                     )
             }
@@ -259,6 +264,67 @@ struct ContentView: View {
         }
     }
 
+    private func updateGesture(with value: DragGesture.Value, in size: CGSize) {
+        let mode: ParticleGestureMode
+
+        if let activeGestureMode {
+            mode = activeGestureMode
+        } else {
+            mode = gestureMode(startingAt: value.startLocation, in: size)
+            self.activeGestureMode = mode
+            rotationAtGestureStart = objectRotation
+        }
+
+        switch mode {
+        case .interaction:
+            isObjectRotationHeld = false
+            updateInteraction(at: value.location, in: size)
+        case .rotation:
+            interactionStrength = 0
+            updateObjectRotation(with: value, in: size)
+        }
+    }
+
+    private func gestureMode(startingAt location: CGPoint, in size: CGSize) -> ParticleGestureMode {
+        isParticleArea(at: location, in: size) ? .interaction : .rotation
+    }
+
+    private func isParticleArea(at location: CGPoint, in size: CGSize) -> Bool {
+        guard size.width > 0, size.height > 0 else {
+            return false
+        }
+
+        let shorterSide = min(size.width, size.height)
+        let cloudPadding = CGFloat(progress) * shorterSide * 0.06
+        let center = CGPoint(
+            x: size.width * 0.5,
+            y: size.height * 0.45
+        )
+
+        switch selectedShape {
+        case .sphere:
+            let halfWidth = shorterSide * 0.26 + cloudPadding
+            let halfHeight = shorterSide * 0.29 + cloudPadding
+            let x = (location.x - center.x) / halfWidth
+            let y = (location.y - center.y) / halfHeight
+
+            return x * x + y * y <= 1
+        case .cube:
+            let halfSize = shorterSide * 0.31 + cloudPadding
+
+            return abs(location.x - center.x) <= halfSize
+                && abs(location.y - center.y) <= halfSize
+        case .logo:
+            let halfWidth = shorterSide * 0.34 + cloudPadding
+            let top = center.y - shorterSide * 0.32 - cloudPadding
+            let bottom = center.y + shorterSide * 0.34 + cloudPadding
+
+            return abs(location.x - center.x) <= halfWidth
+                && location.y >= top
+                && location.y <= bottom
+        }
+    }
+
     private func updateInteraction(at location: CGPoint, in size: CGSize) {
         guard size.width > 0, size.height > 0 else {
             return
@@ -275,22 +341,15 @@ struct ContentView: View {
         isObjectRotationHeld = true
 
         guard size.width > 0, size.height > 0 else {
-            previousDragLocation = value.location
-            return
-        }
-
-        guard let previousDragLocation else {
-            self.previousDragLocation = value.location
             return
         }
 
         let dragScale = max(Float(min(size.width, size.height)), 1)
-        let deltaX = Float(value.location.x - previousDragLocation.x) / dragScale
-        let deltaY = Float(value.location.y - previousDragLocation.y) / dragScale
+        let deltaX = Float(value.translation.width) / dragScale
+        let deltaY = Float(value.translation.height) / dragScale
 
-        objectRotation.x += deltaX * 4.2
-        objectRotation.y = min(max(objectRotation.y + deltaY * 3.2, -1.15), 1.15)
-        self.previousDragLocation = value.location
+        objectRotation.x = rotationAtGestureStart.x + deltaX * 4.2
+        objectRotation.y = min(max(rotationAtGestureStart.y + deltaY * 3.2, -1.15), 1.15)
     }
 }
 
